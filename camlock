@@ -1,0 +1,122 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = game.Players.LocalPlayer:GetMouse()
+local CamlockState = false
+local Prediction = 0.16574
+local XPrediction = 0.020
+local YPrediction = 0.3
+local Smoothness = 0.01
+local Locked = true
+getgenv().Key = "q"
+
+function FindNearestEnemy()
+    local ClosestDistance, ClosestPlayer = math.huge, nil
+    local CenterPosition =
+        Vector2.new(
+        game:GetService("GuiService"):GetScreenResolution().X / 2,
+        game:GetService("GuiService"):GetScreenResolution().Y / 2
+    )
+
+    for _, Player in ipairs(game:GetService("Players"):GetPlayers()) do
+        if Player ~= LocalPlayer then
+            local Character = Player.Character
+            if Character and Character:FindFirstChild("HumanoidRootPart") and Character.Humanoid.Health > 0 then
+                local Position, IsVisibleOnViewport =
+                    game:GetService("Workspace").CurrentCamera:WorldToViewportPoint(Character.HumanoidRootPart.Position)
+
+                if IsVisibleOnViewport then
+                    local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
+                    if Distance < ClosestDistance then
+                        ClosestPlayer = Character.HumanoidRootPart
+                        ClosestDistance = Distance
+                    end
+                end
+            end
+        end
+    end
+
+    return ClosestPlayer
+end
+
+local enemy = nil
+
+RunService.Heartbeat:Connect(function()
+    if CamlockState == true then
+        if enemy then
+            local camera = workspace.CurrentCamera
+            local targetPosition = enemy.Position + enemy.Velocity * Prediction
+            targetPosition = Vector3.new(targetPosition.X + XPrediction, targetPosition.Y + YPrediction, targetPosition.Z)
+            
+            local currentPosition = camera.CFrame.Position
+            local newPosition = currentPosition:Lerp(targetPosition, Smoothness)
+            
+            camera.CFrame = CFrame.new(newPosition, targetPosition)
+        end
+    end
+end)
+
+Mouse.KeyDown:Connect(function(k)    
+    if k == getgenv().Key then    
+            Locked = not Locked    
+            if Locked then    
+                enemy = FindNearestEnemy()
+                CamlockState = true
+             else    
+                if enemy ~= nil then    
+                    enemy = nil    
+                    CamlockState = false
+                end    
+            end    
+    end    
+ end)
+
+local keytoclick = getgenv().Key
+local player = game.Players.LocalPlayer
+local tool = Instance.new("Tool")
+tool.RequiresHandle = false
+tool.Name = "tenakii"
+tool.Parent = player.Backpack
+
+local function lockTool()
+    tool.Parent = player.Backpack
+end
+
+local function unlockTool()
+    tool.Parent = player.Character or player.Backpack
+end
+
+tool.Activated:Connect(function()
+    local vim = game:GetService("VirtualInputManager")
+    vim:SendKeyEvent(true, keytoclick, false, game)
+end)
+
+player.CharacterAdded:Connect(function(character)
+    unlockTool()
+    character:WaitForChild("Humanoid").Died:Connect(function()
+        lockTool()
+    end)
+end)
+
+player.CharacterRemoving:Connect(function()
+    lockTool()
+end)
+
+game.Players.PlayerAdded:Connect(function(newPlayer)
+    newPlayer.CharacterAdded:Connect(function(newCharacter)
+        if newPlayer == player then
+            unlockTool()
+        end
+    end)
+end)
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "tenakii on Discord",
+    Text = "Successfully loaded tenakii",
+})
+
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode[keytoclick] then
+        tool.Activated:Fire()
+    end
+end)
